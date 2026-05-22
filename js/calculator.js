@@ -13,14 +13,15 @@ class Calculator {
      */
     calculateEmission(distance, transport) {
         const factor = this.config.emissionFactors[transport] || 0;
-        const emissionKg = (distance * factor);
+        const emissionKg = Number((distance * factor).toFixed(3));
         
         return {
             emissionKg,
-            emissionG: emissionKg * 1000,
-            emissionTons: emissionKg / 1000,
+            emissionG: Number((emissionKg * 1000).toFixed(0)),
+            emissionTons: Number((emissionKg / 1000).toFixed(3)),
             transport,
-            distance
+            distance,
+            factor
         };
     }
 
@@ -36,10 +37,19 @@ class Calculator {
 
         Object.keys(this.config.emissionFactors).forEach(transportMode => {
             const emission = this.calculateEmission(distance, transportMode);
+            const differenceKg = Number((currentEmission.emissionKg - emission.emissionKg).toFixed(3));
+            const percentageDifference = currentEmission.emissionKg === 0
+                ? null
+                : Number(((differenceKg / currentEmission.emissionKg) * 100).toFixed(2));
+
             comparisons[transportMode] = {
                 emissionKg: emission.emissionKg,
-                difference: currentEmission.emissionKg - emission.emissionKg,
-                percentageDifference: ((currentEmission.emissionKg - emission.emissionKg) / currentEmission.emissionKg * 100)
+                emissionG: emission.emissionG,
+                emissionTons: emission.emissionTons,
+                cost: this.calculateTravelCost(distance, transportMode),
+                differenceKg,
+                percentageDifference,
+                savings: differenceKg > 0 ? differenceKg : 0
             };
         });
 
@@ -52,21 +62,28 @@ class Calculator {
      * @returns {object} Dados de crédito de carbono
      */
     calculateCarbonCredits(emissionKg) {
-        const creditsTons = emissionKg / 1000;
         const creditsKg = emissionKg;
+        const creditsTons = Number((creditsKg / this.config.carbonCredit.KG_PER_CREDIT).toFixed(3));
+        const creditsUnits = Math.ceil(creditsKg / this.config.carbonCredit.KG_PER_CREDIT);
+        const costMin = creditsUnits * this.config.carbonCredit.PRICE_MIN_BRL;
+        const costMax = creditsUnits * this.config.carbonCredit.PRICE_MAX_BRL;
         
         // Quantas árvores precisam ser plantadas
         const treesToPlant = Math.ceil(creditsKg / this.config.equivalences.treesToPlant);
         
         // Distância equivalente em carro elétrico
-        const kmElectricCar = creditsKg / this.config.equivalences.kmByElectricCar;
+        const kmElectricCar = Math.round(creditsKg / this.config.equivalences.kmByElectricCar);
 
         return {
-            creditsTons,
             creditsKg,
+            creditsTons,
+            creditsUnits,
+            costMin,
+            costMax,
+            costRange: `R$ ${costMin.toFixed(2)} - R$ ${costMax.toFixed(2)}`,
             treesToPlant,
-            kmElectricCar: Math.round(kmElectricCar),
-            carbonCreditsNeeded: Math.ceil(creditsTons)
+            kmElectricCar,
+            carbonCreditsNeeded: creditsUnits
         };
     }
 

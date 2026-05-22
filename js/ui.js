@@ -162,13 +162,14 @@ class UIManager {
         const travelTime = calculator.calculateTravelTime(emission.distance, emission.transport);
         const travelCost = calculator.calculateTravelCost(emission.distance, emission.transport);
         const timeFormatted = calculator.formatTime(travelTime);
+        const transportData = TRANSPORT_MODES[emission.transport] || { label: emission.transport, emoji: '' };
 
         return `
             <div class="result-card">
                 <h2>📊 Resultado da Emissão</h2>
                 <div class="result-item">
                     <label>Trajeto:</label>
-                    <p>${emission.distance} km via ${TRANSPORT_NAMES[emission.transport]}</p>
+                    <p>${emission.distance} km via ${transportData.emoji} ${transportData.label}</p>
                 </div>
                 <div class="result-item">
                     <label>CO₂ Emitido:</label>
@@ -196,23 +197,19 @@ class UIManager {
     generateComparisonHTML(comparisons) {
         const items = Object.keys(comparisons).map(transport => {
             const data = comparisons[transport];
-            const icon = {
-                bicycle: '🚴',
-                car: '🚗',
-                bus: '🚌',
-                truck: '🚚'
-            }[transport];
+            const transportData = TRANSPORT_MODES[transport] || { label: transport, emoji: '' };
 
             return `
                 <div class="comparison-item">
-                    <div class="comparison-icon">${icon}</div>
+                    <div class="comparison-icon">${transportData.emoji}</div>
                     <div class="comparison-info">
-                        <h4>${TRANSPORT_NAMES[transport]}</h4>
+                        <h4>${transportData.label}</h4>
                         <p>${this.formatNumber(data.emissionKg)} kg CO₂</p>
-                        ${data.difference !== 0 ? `
-                            <p class="comparison-difference ${data.difference > 0 ? 'positive' : 'negative'}">
-                                ${data.difference > 0 ? '+' : ''}${this.formatNumber(data.difference)} kg
-                                (${data.difference > 0 ? '+' : ''}${this.formatNumber(data.percentageDifference)}%)
+                        <p>R$ ${this.formatNumber(data.cost)}</p>
+                        ${data.differenceKg !== 0 ? `
+                            <p class="comparison-difference ${data.differenceKg > 0 ? 'positive' : 'negative'}">
+                                ${data.differenceKg > 0 ? '+' : ''}${this.formatNumber(data.differenceKg)} kg
+                                (${data.percentageDifference !== null ? `${data.percentageDifference > 0 ? '+' : ''}${this.formatNumber(data.percentageDifference)}%` : '—'})
                             </p>
                         ` : '<p class="comparison-difference">Igual</p>'}
                     </div>
@@ -243,17 +240,22 @@ class UIManager {
                 <div class="credits-item">
                     <label>Árvores para Plantar:</label>
                     <p class="credits-value">${credits.treesToPlant} árvores</p>
-                    <p class="credits-subtitle">Para compensar completamente a emissão</p>
+                    <p class="credits-subtitle">Para compensar a emissão total</p>
                 </div>
                 <div class="credits-item">
                     <label>Equivalente em Carro Elétrico:</label>
                     <p class="credits-value">${credits.kmElectricCar} km</p>
-                    <p class="credits-subtitle">Mesma distância em um carro elétrico</p>
+                    <p class="credits-subtitle">Distância equivalente sem emissão</p>
                 </div>
                 <div class="credits-item">
                     <label>Créditos de Carbono:</label>
-                    <p class="credits-value">${credits.carbonCreditsNeeded} ton</p>
-                    <p class="credits-subtitle">Necessários para neutralizar a emissão</p>
+                    <p class="credits-value">${credits.carbonCreditsNeeded} créditos</p>
+                    <p class="credits-subtitle">Unidades para neutralizar a emissão</p>
+                </div>
+                <div class="credits-item">
+                    <label>Valor Estimado:</label>
+                    <p class="credits-value">${credits.costRange}</p>
+                    <p class="credits-subtitle">Com base no preço mínimo e máximo</p>
                 </div>
             </div>
         `;

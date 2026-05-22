@@ -9,9 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
     calculator = new Calculator(CONFIG);
     uiManager = new UIManager();
 
-    // Popula lista de cidades
-    const cities = getCitiesList();
-    uiManager.populateCitiesList(cities);
+    // Popula datalist com cidades usando a configuração
+    CONFIG.populadateDatalist();
+    CONFIG.setupDistanceAutofull();
 
     // Event Listeners
     setupEventListeners();
@@ -27,8 +27,12 @@ function setupEventListeners() {
     });
 
     // Evento quando origem ou destino mudam
+    uiManager.originInput.addEventListener('input', updateDistance);
     uiManager.originInput.addEventListener('change', updateDistance);
+    uiManager.originInput.addEventListener('blur', updateDistance);
+    uiManager.destinationInput.addEventListener('input', updateDistance);
     uiManager.destinationInput.addEventListener('change', updateDistance);
+    uiManager.destinationInput.addEventListener('blur', updateDistance);
 
     // Evento quando distância é alterada manualmente
     uiManager.distanceInput.addEventListener('input', (e) => {
@@ -56,11 +60,46 @@ function updateDistance() {
         const distance = getDistance(origin, destination);
         if (distance) {
             uiManager.setDistance(distance);
-            uiManager.hideResults();
+            attemptAutoCalculate();
         } else {
             uiManager.setDistance('');
+            uiManager.hideResults();
         }
+    } else {
+        uiManager.setDistance('');
+        uiManager.hideResults();
     }
+}
+
+function attemptAutoCalculate() {
+    if (uiManager.manualDistanceCheckbox.checked) {
+        return;
+    }
+
+    const origin = uiManager.originInput.value;
+    const destination = uiManager.destinationInput.value;
+    const distance = uiManager.distanceInput.value;
+
+    if (!origin || !destination || !distance || origin === destination) {
+        return;
+    }
+
+    if (!uiManager.validateForm()) {
+        return;
+    }
+
+    const formData = uiManager.getFormData();
+    const emission = calculator.calculateEmission(formData.distance, formData.transport);
+    const comparisons = calculator.calculateComparison(formData.distance, formData.transport);
+    const credits = calculator.calculateCarbonCredits(emission.emissionKg);
+
+    const resultsHTML = uiManager.generateResultsHTML(emission, calculator);
+    const comparisonHTML = uiManager.generateComparisonHTML(comparisons);
+    const creditsHTML = uiManager.generateCarbonCreditsHTML(emission.emissionKg, credits);
+
+    uiManager.showResults(resultsHTML);
+    uiManager.showComparison(comparisonHTML);
+    uiManager.showCarbonCredits(creditsHTML);
 }
 
 /**
