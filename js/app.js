@@ -1,142 +1,79 @@
 // Arquivo principal da aplicação
+(function() {
+    document.addEventListener('DOMContentLoaded', () => {
+        // Inicialização da aplicação quando o DOM estiver pronto
+        CONFIG.populadateDatalist();
+        CONFIG.setupDistanceAutofull();
 
-let calculator;
-let uiManager;
+        const calculator = new Calculator(CONFIG);
+        const calculatorForm = document.getElementById('calculator-form');
 
-// Inicializa a aplicação
-document.addEventListener('DOMContentLoaded', () => {
-    // Inicializa o Calculator e UIManager
-    calculator = new Calculator(CONFIG);
-    uiManager = new UIManager();
+        if (!calculatorForm) {
+            console.error('Formulário calculator-form não encontrado.');
+            return;
+        }
 
-    // Popula datalist com cidades usando a configuração
-    CONFIG.populadateDatalist();
-    CONFIG.setupDistanceAutofull();
+        calculatorForm.addEventListener('submit', handleCalculatorSubmit);
 
-    // Event Listeners
-    setupEventListeners();
-});
+        console.log('Calculador inicializada!');
 
-/**
- * Configura os event listeners
- */
-function setupEventListeners() {
-    // Evento do checkbox de distância manual
-    uiManager.manualDistanceCheckbox.addEventListener('change', (e) => {
-        uiManager.toggleManualDistance(e.target.checked);
-    });
+        /**
+         * Manipula o envio do formulário de cálculo
+         * @param {Event} event
+         */
+        function handleCalculatorSubmit(event) {
+            event.preventDefault();
 
-    // Evento quando origem ou destino mudam
-    uiManager.originInput.addEventListener('input', updateDistance);
-    uiManager.originInput.addEventListener('change', updateDistance);
-    uiManager.originInput.addEventListener('blur', updateDistance);
-    uiManager.destinationInput.addEventListener('input', updateDistance);
-    uiManager.destinationInput.addEventListener('change', updateDistance);
-    uiManager.destinationInput.addEventListener('blur', updateDistance);
+            const originValue = UI.originInput ? UI.originInput.value.trim() : '';
+            const destinationValue = UI.destinationInput ? UI.destinationInput.value.trim() : '';
+            const distanceValue = UI.distanceInput ? parseFloat(UI.distanceInput.value) : 0;
+            const selectedTransportInput = document.querySelector('input[name="transport"]:checked');
+            const transportMode = selectedTransportInput ? selectedTransportInput.value : 'car';
+            const submitButton = calculatorForm.querySelector('button[type="submit"]');
 
-    // Evento quando distância é alterada manualmente
-    uiManager.distanceInput.addEventListener('input', (e) => {
-        if (uiManager.manualDistanceCheckbox.checked && e.target.value) {
-            uiManager.hideResults();
+            if (!originValue || !destinationValue || !UI.distanceInput.value) {
+                alert('Preencha origem, destino e distância antes de calcular.');
+                return;
+            }
+
+            if (Number.isNaN(distanceValue) || distanceValue <= 0) {
+                alert('A distância deve ser um número maior que zero.');
+                return;
+            }
+
+            UI.showLoading(submitButton);
+            UI.hideElement(UI.resultsSection);
+            UI.hideElement(UI.comparisonSection);
+            UI.hideElement(UI.carbonCreditsSection);
+
+            setTimeout(() => {
+                try {
+                    const routeEmission = calculator.calculateEmission(distanceValue, transportMode);
+                    const carBaselineEmission = calculator.calculateEmission(distanceValue, 'car');
+                    const comparisonResults = calculator.calculateComparison(distanceValue, transportMode);
+                    const carbonCredits = calculator.calculateCarbonCredits(routeEmission.emissionKg);
+
+                    const resultsHTML = UI.generateResultsHTML(routeEmission, calculator);
+                    const comparisonHTML = UI.renderComparison(comparisonResults);
+                    const creditsHTML = UI.renderCarbonCredits(routeEmission.emissionKg, carbonCredits);
+
+                    UI.resultsContent.innerHTML = resultsHTML;
+                    UI.comparisonContent.innerHTML = comparisonHTML;
+                    UI.carbonCreditsContent.innerHTML = creditsHTML;
+
+                    UI.showElement(UI.resultsSection);
+                    UI.showElement(UI.comparisonSection);
+                    UI.showElement(UI.carbonCreditsSection);
+                    UI.scrollToElement(UI.resultsSection);
+
+                    console.log('Emissão de referência (carro):', carBaselineEmission);
+                } catch (error) {
+                    console.error('Erro ao processar o cálculo:', error);
+                    alert('Ocorreu um erro ao calcular as emissões. Tente novamente.');
+                } finally {
+                    UI.hideLoading(submitButton);
+                }
+            }, 1500);
         }
     });
-
-    // Evento do formulário
-    uiManager.form.addEventListener('submit', handleFormSubmit);
-}
-
-/**
- * Atualiza a distância automaticamente
- */
-function updateDistance() {
-    if (uiManager.manualDistanceCheckbox.checked) {
-        return; // Se modo manual está ativo, não atualiza
-    }
-
-    const origin = uiManager.originInput.value;
-    const destination = uiManager.destinationInput.value;
-
-    if (origin && destination && origin !== destination) {
-        const distance = getDistance(origin, destination);
-        if (distance) {
-            uiManager.setDistance(distance);
-            attemptAutoCalculate();
-        } else {
-            uiManager.setDistance('');
-            uiManager.hideResults();
-        }
-    } else {
-        uiManager.setDistance('');
-        uiManager.hideResults();
-    }
-}
-
-function attemptAutoCalculate() {
-    if (uiManager.manualDistanceCheckbox.checked) {
-        return;
-    }
-
-    const origin = uiManager.originInput.value;
-    const destination = uiManager.destinationInput.value;
-    const distance = uiManager.distanceInput.value;
-
-    if (!origin || !destination || !distance || origin === destination) {
-        return;
-    }
-
-    if (!uiManager.validateForm()) {
-        return;
-    }
-
-    const formData = uiManager.getFormData();
-    const emission = calculator.calculateEmission(formData.distance, formData.transport);
-    const comparisons = calculator.calculateComparison(formData.distance, formData.transport);
-    const credits = calculator.calculateCarbonCredits(emission.emissionKg);
-
-    const resultsHTML = uiManager.generateResultsHTML(emission, calculator);
-    const comparisonHTML = uiManager.generateComparisonHTML(comparisons);
-    const creditsHTML = uiManager.generateCarbonCreditsHTML(emission.emissionKg, credits);
-
-    uiManager.showResults(resultsHTML);
-    uiManager.showComparison(comparisonHTML);
-    uiManager.showCarbonCredits(creditsHTML);
-}
-
-/**
- * Manipula o envio do formulário
- */
-function handleFormSubmit(e) {
-    e.preventDefault();
-
-    // Valida o formulário
-    if (!uiManager.validateForm()) {
-        return;
-    }
-
-    // Obtém dados do formulário
-    const formData = uiManager.getFormData();
-
-    // Calcula emissão
-    const emission = calculator.calculateEmission(formData.distance, formData.transport);
-
-    // Calcula comparação
-    const comparisons = calculator.calculateComparison(formData.distance, formData.transport);
-
-    // Calcula créditos de carbono
-    const credits = calculator.calculateCarbonCredits(emission.emissionKg);
-
-    // Gera HTMLs
-    const resultsHTML = uiManager.generateResultsHTML(emission, calculator);
-    const comparisonHTML = uiManager.generateComparisonHTML(comparisons);
-    const creditsHTML = uiManager.generateCarbonCreditsHTML(emission.emissionKg, credits);
-
-    // Exibe resultados
-    uiManager.showResults(resultsHTML);
-    uiManager.showComparison(comparisonHTML);
-    uiManager.showCarbonCredits(creditsHTML);
-
-    // Log para debug
-    console.log('Emissão:', emission);
-    console.log('Comparação:', comparisons);
-    console.log('Créditos:', credits);
-}
+})();
